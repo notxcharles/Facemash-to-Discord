@@ -1,11 +1,13 @@
-discord_details = dict(
-    bot_token = "",
-    server_id = 
-)
+discord_details = {
+    "bot_token": "",
+    "server_id": ,
+    "canUpdate": []
+}
 
-mysql_database = dict(
-    hostname = "",
-    database_name = "",
-    username = "",
-    password = ""
-)
+mysql_database = {
+    "hostname": "",
+    "database_name": "",
+    "username": "",
+    "password": "",
+    "table_name": ""
+}
