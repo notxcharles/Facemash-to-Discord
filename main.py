@@ -7,14 +7,16 @@ import numpy as np
 
 debugMode = True
 
-mysql_db = mysql.connector.connect(
-    host = config.mysql_database["hostname"],
-    database = config.mysql_database["database_name"],
-    user = config.mysql_database["username"],
-    password = config.mysql_database["password"]
-)
+def mySqlConnect():
+    mysql_db = mysql.connector.connect(
+        host = config.mysql_database["hostname"],
+        database = config.mysql_database["database_name"],
+        user = config.mysql_database["username"],
+        password = config.mysql_database["password"]
+    )
+    return mysql_db
 
-def getRatings(): # Read SQL table and save the results (columns 2 and 3, name: rating)
+def getRatings(mysql_db): # Read SQL table and save the results (columns 2 and 3, name: rating)
     mysql_cursor = mysql_db.cursor()
     operation = "SELECT * FROM `{0}`".format(config.mysql_database["table_name"])
     mysql_cursor.execute(operation)
@@ -62,33 +64,39 @@ class DiscordClient(discord.Client):
     async def on_message(self, message):
         if debugMode: print("Message from {0.author}: {0.content}".format(message))
         if (message.content == "update") and (message.author.id in config.discord_details["canUpdate"]):
-            await message.reply("Updating")
-
-            rankings = getRatings()
-            returns = generateNormaldistribution(rankings)
-            rankingsWithProbability = normalDistributionProbability(returns[0], returns[1], returns[2])
-
-            discordGuildID = config.discord_details["server_id"]
-            discordGuild = client.get_guild(discordGuildID)
-
-            numberOfCategories = len(config.discord_details["channel_categories"])
-            for i in range(numberOfCategories):
-                upperLimit = (i+1)/numberOfCategories
-                lowerLimit = i/numberOfCategories
-                print(lowerLimit, "-", upperLimit)
+            try:
+                mysql_db = mySqlConnect()
+            except mysql.connector.Error:
+                await message.reply("MySQL Error")
+            else:
                 
-                discordCategory = discord.utils.get(discordGuild.categories, id=config.discord_details["channel_categories"][i])  
-                
-                for v in range(len(rankingsWithProbability)):
-                    if rankings[v]["entry"]["probability"] <= upperLimit and rankings[v]["entry"]["probability"] > lowerLimit:
-                        if debugMode: print(rankings[v]["entry"]["name"],rankings[v]["entry"]["probability"])
-                        discordTextChannel = discord.utils.get(discordGuild.text_channels, name=rankings[v]["entry"]["name"].replace(" ","-"))
-                        if discordTextChannel:
-                            await discordTextChannel.edit(category=discordCategory)
-                            if debugMode: print("Moved", rankings[v]["entry"]["name"].replace(" ","-"))
-                        else:
-                            if debugMode: print("Channel with name", rankings[v]["entry"]["name"].replace(" ","-"), "not found")
-            await message.reply("Update complete")
+                await message.reply("Updating")
+
+                rankings = getRatings(mysql_db)
+                returns = generateNormaldistribution(rankings)
+                rankingsWithProbability = normalDistributionProbability(returns[0], returns[1], returns[2])
+
+                discordGuildID = config.discord_details["server_id"]
+                discordGuild = client.get_guild(discordGuildID)
+
+                numberOfCategories = len(config.discord_details["channel_categories"])
+                for i in range(numberOfCategories):
+                    upperLimit = (i+1)/numberOfCategories
+                    lowerLimit = i/numberOfCategories
+                    print(lowerLimit, "-", upperLimit)
+                    
+                    discordCategory = discord.utils.get(discordGuild.categories, id=config.discord_details["channel_categories"][i])  
+                    
+                    for v in range(len(rankingsWithProbability)):
+                        if rankings[v]["entry"]["probability"] <= upperLimit and rankings[v]["entry"]["probability"] > lowerLimit:
+                            if debugMode: print(rankings[v]["entry"]["name"],rankings[v]["entry"]["probability"])
+                            discordTextChannel = discord.utils.get(discordGuild.text_channels, name=rankings[v]["entry"]["name"].replace(" ","-"))
+                            if discordTextChannel:
+                                await discordTextChannel.edit(category=discordCategory)
+                                if debugMode: print("Moved", rankings[v]["entry"]["name"].replace(" ","-"))
+                            else:
+                                if debugMode: print("Channel with name", rankings[v]["entry"]["name"].replace(" ","-"), "not found")
+                await message.reply("Update complete")
 
 
 client = DiscordClient()
